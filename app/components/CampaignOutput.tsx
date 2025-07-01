@@ -519,12 +519,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                           className="text-sm font-mono bg-gray-100 px-2 py-1 rounded border"
                                           onKeyPress={(e) => {
                                             if (e.key === 'Enter') {
-                                              saveEdit(keywordId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'keywords', keywordIndex, 'keyword']);
+                                              saveEdit(keywordId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'keywords', String(keywordIndex), 'keyword']);
                                             }
                                           }}
                                         />
                                         <button
-                                          onClick={() => saveEdit(keywordId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'keywords', keywordIndex, 'keyword'])}
+                                          onClick={() => saveEdit(keywordId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'keywords', String(keywordIndex), 'keyword'])}
                                           className="text-green-600 hover:text-green-800"
                                         >
                                           <Save className="w-4 h-4" />
@@ -542,7 +542,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                           {keyword.matchType.charAt(0).toUpperCase() + keyword.matchType.slice(1)} Match
                                         </span>
                                         <button
-                                          onClick={() => deleteItem(['themes', themeIndex, 'adGroups', adGroupIndex, 'keywords', keywordIndex])}
+                                          onClick={() => deleteItem(['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'keywords', String(keywordIndex)])}
                                           className="absolute right-0 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800"
                                         >
                                           <X className="w-4 h-4" />
@@ -591,12 +591,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                                 maxLength={30}
                                                 onKeyPress={(e) => {
                                                   if (e.key === 'Enter') {
-                                                    saveEdit(headlineId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'headlines', headlineIndex]);
+                                                    saveEdit(headlineId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'headlines', String(headlineIndex)]);
                                                   }
                                                 }}
                                               />
                                               <button
-                                                onClick={() => saveEdit(headlineId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'headlines', headlineIndex])}
+                                                onClick={() => saveEdit(headlineId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'headlines', String(headlineIndex)])}
                                                 className="text-green-600 hover:text-green-800"
                                               >
                                                 <Save className="w-3 h-3" />
@@ -614,7 +614,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                                 {headline.length}/30 chars
                                               </div>
                                               <button
-                                                onClick={() => deleteItem(['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'headlines', headlineIndex])}
+                                                onClick={() => deleteItem(['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'headlines', String(headlineIndex)])}
                                                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800"
                                               >
                                                 <X className="w-3 h-3" />
@@ -657,12 +657,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                                 rows={2}
                                                 onKeyPress={(e) => {
                                                   if (e.key === 'Enter' && e.ctrlKey) {
-                                                    saveEdit(descId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'descriptions', descIndex]);
+                                                    saveEdit(descId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'descriptions', String(descIndex)]);
                                                   }
                                                 }}
                                               />
                                               <button
-                                                onClick={() => saveEdit(descId, ['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'descriptions', descIndex])}
+                                                onClick={() => saveEdit(descId, ['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'descriptions', String(descIndex)])}
                                                 className="text-green-600 hover:text-green-800"
                                               >
                                                 <Save className="w-3 h-3" />
@@ -680,7 +680,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                                 {description.length}/90 chars
                                               </div>
                                               <button
-                                                onClick={() => deleteItem(['themes', themeIndex, 'adGroups', adGroupIndex, 'ads', adIndex, 'descriptions', descIndex])}
+                                                onClick={() => deleteItem(['themes', String(themeIndex), 'adGroups', String(adGroupIndex), 'ads', String(adIndex), 'descriptions', String(descIndex)])}
                                                 className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800"
                                               >
                                                 <X className="w-3 h-3" />
@@ -748,12 +748,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                         className="text-sm bg-red-50 text-red-800 px-2 py-1 rounded w-full"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') {
-                            saveEdit(negKeywordId, ['negativeKeywords', index]);
+                            saveEdit(negKeywordId, ['negativeKeywords', String(index)]);
                           }
                         }}
                       />
                       <button
-                        onClick={() => saveEdit(negKeywordId, ['negativeKeywords', index])}
+                        onClick={() => saveEdit(negKeywordId, ['negativeKeywords', String(index)])}
                         className="text-green-600 hover:text-green-800"
                       >
                         <Save className="w-3 h-3" />
@@ -768,7 +768,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                         {keyword}
                       </div>
                       <button
-                        onClick={() => deleteItem(['negativeKeywords', index])}
+                        onClick={() => deleteItem(['negativeKeywords', String(index)])}
                         className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow text-red-600 hover:text-red-800"
                       >
                         <X className="w-3 h-3" />
@@ -826,12 +826,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                             className="text-sm bg-blue-50 text-blue-800 px-3 py-2 rounded w-full"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter') {
-                                saveEdit(sitelinkId, ['adExtensions', 'sitelinks', index]);
+                                saveEdit(sitelinkId, ['adExtensions', 'sitelinks', String(index)]);
                               }
                             }}
                           />
                           <button
-                            onClick={() => saveEdit(sitelinkId, ['adExtensions', 'sitelinks', index])}
+                            onClick={() => saveEdit(sitelinkId, ['adExtensions', 'sitelinks', String(index)])}
                             className="text-green-600 hover:text-green-800"
                           >
                             <Save className="w-4 h-4" />
@@ -846,7 +846,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                             {sitelink}
                           </div>
                           <button
-                            onClick={() => deleteItem(['adExtensions', 'sitelinks', index])}
+                            onClick={() => deleteItem(['adExtensions', 'sitelinks', String(index)])}
                             className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow text-red-600 hover:text-red-800"
                           >
                             <X className="w-3 h-3" />
@@ -901,12 +901,12 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                             className="text-sm bg-green-50 text-green-800 px-2 py-1 rounded w-full"
                             onKeyPress={(e) => {
                               if (e.key === 'Enter') {
-                                saveEdit(calloutId, ['adExtensions', 'callouts', index]);
+                                saveEdit(calloutId, ['adExtensions', 'callouts', String(index)]);
                               }
                             }}
                           />
                           <button
-                            onClick={() => saveEdit(calloutId, ['adExtensions', 'callouts', index])}
+                            onClick={() => saveEdit(calloutId, ['adExtensions', 'callouts', String(index)])}
                             className="text-green-600 hover:text-green-800"
                           >
                             <Save className="w-3 h-3" />
@@ -921,7 +921,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                             {callout}
                           </div>
                           <button
-                            onClick={() => deleteItem(['adExtensions', 'callouts', index])}
+                            onClick={() => deleteItem(['adExtensions', 'callouts', String(index)])}
                             className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 bg-white rounded-full p-1 shadow text-red-600 hover:text-red-800"
                           >
                             <X className="w-3 h-3" />
