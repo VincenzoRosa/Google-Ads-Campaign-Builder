@@ -31,28 +31,57 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
 
     const prompt = buildCampaignPrompt(input);
     
-    const completion = await openai.chat.completions.create({
+    // Check if it's an O-series model that requires max_completion_tokens
+    const isOSeriesModel = input.aiModel && (
+      input.aiModel.startsWith('o1') || 
+      input.aiModel.startsWith('o3') || 
+      input.aiModel.startsWith('o4')
+    );
+    
+    // Build the completion parameters based on model type
+    const completionParams: any = {
       model: input.aiModel || "gpt-4",
       messages: [
         {
           role: "system",
-          content: "You are a Google Ads expert specializing in creating high-performing Search campaigns. You understand keyword research, match types, ad copy best practices, and local market preferences. Always respond with valid JSON structure as requested."
+          content: isOSeriesModel 
+            ? "You are a Google Ads expert. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding."
+            : "You are a Google Ads expert specializing in creating high-performing Search campaigns. You understand keyword research, match types, ad copy best practices, and local market preferences. Always respond with valid JSON structure as requested."
         },
         {
           role: "user",
           content: input.customPrompt ? `${prompt}\n\nAdditional Instructions: ${input.customPrompt}` : prompt
         }
       ],
-      temperature: 0.7,
-      max_tokens: input.maxTokens || 8000,
-    });
+    };
+    
+    // Use the correct parameter name based on model type
+    if (isOSeriesModel) {
+      completionParams.max_completion_tokens = input.maxTokens || 8000;
+      // O-series models may not support temperature
+    } else {
+      completionParams.max_tokens = input.maxTokens || 8000;
+      completionParams.temperature = 0.7;
+    }
+    
+    const completion = await openai.chat.completions.create(completionParams);
 
     const responseContent = completion.choices[0]?.message?.content;
+    const finishReason = completion.choices[0]?.finish_reason;
     
     if (!responseContent) {
       return NextResponse.json({
         success: false,
         error: 'No response from AI'
+      }, { status: 500 });
+    }
+    
+    // Check if the response was truncated
+    if (finishReason === 'length') {
+      console.error('Response was truncated due to token limit');
+      return NextResponse.json({
+        success: false,
+        error: 'Response was cut off due to token limit. Please try: 1) Reducing Max Tokens to 2000-4000, 2) Using "low" keyword density, 3) Using "conservative" match type strategy, or 4) Using a simpler product description.'
       }, { status: 500 });
     }
 
@@ -61,14 +90,52 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
     try {
       parsedCampaign = JSON.parse(responseContent);
     } catch (parseError) {
-      // If JSON parsing fails, try to extract JSON from the response
+      console.log('Initial JSON parse failed, attempting to fix...');
+      
+      // Try to extract JSON from the response
       const jsonMatch = responseContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedCampaign = JSON.parse(jsonMatch[0]);
+        let jsonString = jsonMatch[0];
+        
+        // Common JSON fixes
+        try {
+          // Fix missing commas between array elements
+          jsonString = jsonString.replace(/"\s*\n\s*"/g, '",\n"');
+          jsonString = jsonString.replace(/\]\s*\n\s*"/g, '],\n"');
+          jsonString = jsonString.replace(/\}\s*\n\s*\{/g, '},\n{');
+          jsonString = jsonString.replace(/\]\s*\n\s*\{/g, '],\n{');
+          
+          // Fix trailing commas
+          jsonString = jsonString.replace(/,\s*\]/g, ']');
+          jsonString = jsonString.replace(/,\s*\}/g, '}');
+          
+          // Try parsing the fixed JSON
+          parsedCampaign = JSON.parse(jsonString);
+          console.log('Successfully fixed and parsed JSON');
+        } catch (fixError) {
+          // If fixes didn't work, try more aggressive cleaning
+          try {
+            // Remove any text before or after the JSON
+            const cleanJsonMatch = jsonString.match(/^\s*\{[\s\S]*\}\s*$/);
+            if (cleanJsonMatch) {
+              parsedCampaign = JSON.parse(cleanJsonMatch[0].trim());
+            } else {
+              throw new Error('Could not extract valid JSON structure');
+            }
+          } catch (finalError) {
+            console.error('JSON parsing error details:', parseError);
+            console.error('Response content preview:', responseContent.substring(0, 500));
+            
+            return NextResponse.json({
+              success: false,
+              error: `Invalid JSON response from AI. The model generated malformed JSON. Error: ${parseError instanceof Error ? parseError.message : 'Unknown error'}. Try using a different model or reducing the campaign size.`
+            }, { status: 500 });
+          }
+        }
       } else {
         return NextResponse.json({
           success: false,
-          error: 'Invalid response format from AI'
+          error: 'No JSON structure found in AI response. The model may not have understood the request.'
         }, { status: 500 });
       }
     }
@@ -91,9 +158,35 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
 
   } catch (error) {
     console.error('Campaign generation error:', error);
+    
+    // Get more detailed error information
+    let errorMessage = 'Internal server error';
+    let errorDetails = '';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check if it's an OpenAI API error
+      if ('response' in error && error.response) {
+        const response = error.response as any;
+        if (response.data && response.data.error) {
+          errorDetails = response.data.error.message || response.data.error;
+        }
+      }
+      
+      // Check for OpenAI specific error structure
+      if ('error' in error && typeof error.error === 'object' && error.error !== null) {
+        const openAIError = error.error as any;
+        if (openAIError.message) {
+          errorDetails = openAIError.message;
+        }
+      }
+    }
+    
     return NextResponse.json({
       success: false,
-      error: 'Internal server error'
+      error: errorDetails || errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error : undefined
     }, { status: 500 });
   }
 }

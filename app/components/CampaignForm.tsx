@@ -22,7 +22,7 @@ const campaignSchema = z.object({
   // AI Settings
   apiKey: z.string().min(1, 'OpenAI API key is required'),
   aiModel: z.string().optional(),
-  maxTokens: z.number().min(1000).max(16000).optional(),
+  maxTokens: z.number().min(1000).max(32000).optional(),
   customPrompt: z.string().optional(),
 });
 
@@ -51,8 +51,8 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
     defaultValues: {
       matchTypeStrategy: 'balanced',
       keywordDensity: 'medium',
-      aiModel: 'gpt-4o',
-      maxTokens: 8000,
+      aiModel: 'gpt-4o-2024-08-06',
+      maxTokens: 16000,
       apiKey: '',
     },
   });
@@ -67,6 +67,7 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
   }, [setValue]);
 
   const watchedCountry = watch('targetCountry');
+  const watchedAiModel = watch('aiModel');
 
   // Update available languages when country changes
   React.useEffect(() => {
@@ -80,6 +81,15 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
       }
     }
   }, [watchedCountry, setValue]);
+
+  // Update max tokens when model changes
+  React.useEffect(() => {
+    if (watchedAiModel && (watchedAiModel.startsWith('o1') || watchedAiModel.startsWith('o3') || watchedAiModel.startsWith('o4'))) {
+      setValue('maxTokens', 16000); // Higher default for O-series to prevent truncation
+    } else if (watchedAiModel) {
+      setValue('maxTokens', 8000); // Standard default for GPT models
+    }
+  }, [watchedAiModel, setValue]);
 
   const onFormSubmit = (data: CampaignFormData) => {
     const selectedCountryData = COUNTRIES.find(c => c.code === data.targetCountry);
@@ -423,21 +433,40 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
                     id="aiModel"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="gpt-4o">GPT-4o (Great for most tasks)</option>
-                    <option value="o3">o3 (Uses advanced reasoning)</option>
-                    <option value="o3-pro">o3-pro (Best at reasoning)</option>
-                    <option value="o4-mini">o4-mini (Fastest at advanced reasoning)</option>
-                    <option value="o4-mini-high">o4-mini-high (Great at coding and visual reasoning)</option>
-                    <option value="gpt-4o-mini">GPT-4o Mini (Fast & Efficient)</option>
-                    <option value="gpt-4-turbo">GPT-4 Turbo (128K Context)</option>
-                    <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
-                    <option value="gpt-4">GPT-4 (Original)</option>
-                    <option value="gpt-4-0613">GPT-4 (June 2023)</option>
-                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast & Cheap)</option>
-                    <option value="gpt-3.5-turbo-0125">GPT-3.5 Turbo (Jan 2024)</option>
-                    <option value="gpt-3.5-turbo-1106">GPT-3.5 Turbo (Nov 2023)</option>
+                    <optgroup label="Latest GPT-4 Models">
+                      <option value="gpt-4.5-preview-2025-02-27">GPT-4.5 Preview (Most Advanced - $37.50/1M)</option>
+                      <option value="gpt-4.1-2025-04-14">GPT-4.1 (Efficient - $1.00/1M)</option>
+                      <option value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (Fast - $0.20/1M)</option>
+                      <option value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (Fastest - $0.05/1M)</option>
+                      <option value="gpt-4o-2024-08-06">GPT-4o (Recommended - $1.25/1M)</option>
+                      <option value="gpt-4o-mini-2024-07-18">GPT-4o Mini ($0.075/1M)</option>
+                    </optgroup>
+                    <optgroup label="O-Series Models (Reasoning)">
+                      <option value="o1-pro-2025-03-19">O1 Pro (Best Reasoning - $75/1M)</option>
+                      <option value="o1-2024-12-17">O1 (Advanced - $7.50/1M)</option>
+                      <option value="o1-mini-2024-09-12">O1 Mini ($0.55/1M)</option>
+                      <option value="o3-pro-2025-06-10">O3 Pro ($10/1M)</option>
+                      <option value="o3-2025-04-16">O3 (Good Balance - $1.00/1M)</option>
+                      <option value="o3-mini-2025-01-31">O3 Mini ($0.55/1M)</option>
+                      <option value="o4-mini-2025-04-16">O4 Mini (Cost Effective - $0.55/1M)</option>
+                    </optgroup>
+                    <optgroup label="GPT-4 Legacy">
+                      <option value="gpt-4-turbo-2024-04-09">GPT-4 Turbo ($10/1M)</option>
+                      <option value="gpt-4">GPT-4 ($30/1M)</option>
+                    </optgroup>
+                    <optgroup label="GPT-3.5">
+                      <option value="gpt-3.5-turbo-0125">GPT-3.5 Turbo (Budget - $0.50/1M)</option>
+                    </optgroup>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">o3 and o4 models use advanced reasoning capabilities</p>
+                  <p className="text-xs text-gray-500 mt-1">Prices shown are for input tokens. O-series models offer advanced reasoning capabilities.</p>
+                  <div className={`text-xs mt-2 p-2 rounded ${watch('aiModel')?.startsWith('o') ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : 'hidden'}`}>
+                    <strong>Tip:</strong> O-series models excel at reasoning but may need more tokens for large campaigns:
+                    <ul className="list-disc list-inside mt-1">
+                      <li>Consider increasing max tokens to 20000-32000 for comprehensive campaigns</li>
+                      <li>These models provide excellent keyword research and ad copy quality</li>
+                      <li>Allow extra time as O-series models process more thoroughly</li>
+                    </ul>
+                  </div>
                 </div>
 
                 <div>
@@ -448,12 +477,13 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
                     {...register('maxTokens', { valueAsNumber: true })}
                     type="number"
                     min="1000"
-                    max="16000"
+                    max="32000"
                     step="1000"
                     id="maxTokens"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Higher values allow for larger campaigns</p>
+                  <p className="text-xs text-gray-500 mt-1">Higher values allow for larger campaigns (up to 32000)</p>
+                  <p className="text-xs text-orange-600 mt-1">Note: O-series models (O1, O3, O4) use max_completion_tokens and can handle very large outputs</p>
                   <p className="text-sm text-red-600">{errors.maxTokens?.message}</p>
                 </div>
               </div>
