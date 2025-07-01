@@ -128,6 +128,11 @@ export default function Home() {
               for your specific business needs and market conditions.
             </p>
           </div>
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <p className="text-sm text-gray-500">
+              💻 Developed with ❤️ by <span className="font-semibold text-gray-700">Vincenzo Rosa</span>
+            </p>
+          </div>
         </footer>
       </div>
     </div>
