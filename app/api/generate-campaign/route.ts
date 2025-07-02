@@ -275,6 +275,16 @@ CRITICAL: Respond ONLY with valid JSON in this exact structure:
   }
 }
 
+IMPORTANT KEYWORD RULES:
+- Keywords must be plain text WITHOUT any quotes, brackets, or special characters
+- Do NOT include single quotes ('), double quotes ("), backticks (\`), or any other quote marks
+- Do NOT wrap keywords in ANY quotes - not 'keyword', not "keyword", just keyword
+- Do NOT include square brackets [] or any match type symbols
+- Keywords should be clean, plain text only (e.g., canvas prints not 'canvas prints' or "[canvas prints]")
+- NEVER use quotes around keywords - write them as plain text
+- If you're tempted to write 'cheap posters', write cheap posters instead
+- If you're tempted to write "custom prints", write custom prints instead
+
 Ensure all headlines are exactly 30 characters or less and all descriptions are exactly 90 characters or less.`;
 }
 

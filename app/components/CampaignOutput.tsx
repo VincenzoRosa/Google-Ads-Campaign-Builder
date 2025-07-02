@@ -14,10 +14,64 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
   const [copiedSections, setCopiedSections] = useState<Set<string>>(new Set());
   const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
   const [editableCampaign, setEditableCampaign] = useState<GeneratedCampaign>(campaign);
-  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [editValues, setEditValues] = useState<{ [key: string]: string }>({});
 
+  // Comprehensive cleaning function
+  const cleanKeywordText = (text: string): string => {
+    let cleaned = text.trim();
+    
+    // Remove quotes from start and end (including all Unicode variants)
+    cleaned = cleaned.replace(/^[\s\u0022\u0027\u0060\u00B4\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u0301\u2032\u2033\u2034\u2035\u2036\u2037\u2039\u203A\u203C\u203D'"'"`´«»‹›【】〈〉《》「」『』\[\]]+|[\s\u0022\u0027\u0060\u00B4\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u0301\u2032\u2033\u2034\u2035\u2036\u2037\u2039\u203A\u203C\u203D'"'"`´«»‹›【】〈〉《》「」『』\[\]]+$/g, '');
+    
+    // Remove ALL quote characters anywhere in the string
+    // This includes every possible quote variant
+    cleaned = cleaned
+      .replace(/[\u0022]/g, '') // Quotation mark
+      .replace(/[\u0027]/g, '') // Apostrophe
+      .replace(/[\u0060]/g, '') // Grave accent
+      .replace(/[\u00B4]/g, '') // Acute accent
+      .replace(/[\u2018]/g, '') // Left single quotation mark
+      .replace(/[\u2019]/g, '') // Right single quotation mark
+      .replace(/[\u201A]/g, '') // Single low-9 quotation mark
+      .replace(/[\u201B]/g, '') // Single high-reversed-9 quotation mark
+      .replace(/[\u201C]/g, '') // Left double quotation mark
+      .replace(/[\u201D]/g, '') // Right double quotation mark
+      .replace(/[\u201E]/g, '') // Double low-9 quotation mark
+      .replace(/[\u201F]/g, '') // Double high-reversed-9 quotation mark
+      .replace(/[\u2032]/g, '') // Prime
+      .replace(/[\u2033]/g, '') // Double prime
+      .replace(/['']/g, '') // Curly single quotes
+      .replace(/[""]/g, '') // Curly double quotes
+      .replace(/[`´]/g, '') // Backtick and acute
+      .replace(/['"]/g, '') // Standard quotes
+      .replace(/[\[\]]/g, '') // Brackets
+      .replace(/\\/g, '') // Backslashes
+      .trim();
+    
+    return cleaned;
+  };
+
+  // Clean keywords when campaign is loaded
   useEffect(() => {
-    setEditableCampaign(campaign);
+    const cleanedCampaign = { ...campaign };
+    
+    // Clean all keywords to ensure they don't have match type formatting
+    cleanedCampaign.themes.forEach(theme => {
+      theme.adGroups.forEach(adGroup => {
+        adGroup.keywords.forEach(keyword => {
+          keyword.keyword = cleanKeywordText(keyword.keyword);
+        });
+      });
+    });
+    
+    // Also clean negative keywords
+    if (cleanedCampaign.negativeKeywords) {
+      cleanedCampaign.negativeKeywords = cleanedCampaign.negativeKeywords.map(negKeyword => {
+        return cleanKeywordText(negKeyword.replace(/^-/, '')); // Also remove leading minus
+      });
+    }
+    
+    setEditableCampaign(cleanedCampaign);
   }, [campaign]);
 
   const toggleTheme = (index: number) => {
@@ -87,7 +141,13 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
   };
 
   const saveEdit = (id: string, path: string[]) => {
-    const newValue = editValues[id];
+    let newValue = editValues[id];
+    
+    // Clean keywords to remove any match type formatting
+    if (id.startsWith('keyword-') || id.startsWith('neg-keyword-')) {
+      newValue = cleanKeywordText(newValue);
+    }
+    
     const newCampaign = { ...editableCampaign };
     
     // Navigate to the correct location in the campaign object
@@ -125,12 +185,11 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
 
   const addKeyword = (themeIndex: number, adGroupIndex: number) => {
     const newCampaign = { ...editableCampaign };
-    const adGroup = newCampaign.themes[themeIndex].adGroups[adGroupIndex];
-    const newKeyword: KeywordVariant = {
+    const newKeyword = {
       keyword: 'new keyword',
-      matchType: adGroup.matchType
+      matchType: newCampaign.themes[themeIndex].adGroups[adGroupIndex].matchType
     };
-    adGroup.keywords.push(newKeyword);
+    newCampaign.themes[themeIndex].adGroups[adGroupIndex].keywords.push(newKeyword);
     setEditableCampaign(newCampaign);
   };
 
@@ -264,19 +323,31 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
   };
 
   const exportCombinedKeywordsCSV = () => {
+    // Simple CSV format WITHOUT quotes around values
     let csvContent = "Campaign,Ad Group,Keyword,Type\n";
     
+    // First add ALL regular keywords with match type
     editableCampaign.themes.forEach(theme => {
       theme.adGroups.forEach(adGroup => {
         adGroup.keywords.forEach(keyword => {
-          csvContent += `"${editableCampaign.campaignName}","${adGroup.name}","${keyword.keyword}",""\n`;
+          // Use the comprehensive cleaning function
+          const cleanKeyword = cleanKeywordText(keyword.keyword);
+          const matchType = keyword.matchType.toLowerCase();
+          
+          // NO QUOTES around values - just comma-separated
+          csvContent += `${editableCampaign.campaignName},${adGroup.name},${cleanKeyword},${matchType}\n`;
         });
       });
     });
     
+    // Then add negative keywords
     if (editableCampaign.negativeKeywords && editableCampaign.negativeKeywords.length > 0) {
       editableCampaign.negativeKeywords.forEach(negKeyword => {
-        csvContent += `"${editableCampaign.campaignName}","","${negKeyword}","Campaign negative exact"\n`;
+        // Use the comprehensive cleaning function
+        const cleanNegKeyword = cleanKeywordText(negKeyword);
+        
+        // Campaign-level negative keywords - NO QUOTES
+        csvContent += `${editableCampaign.campaignName},,${cleanNegKeyword},Campaign negative exact\n`;
       });
     }
 
@@ -292,13 +363,20 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
   };
 
   const exportGoogleAdsEditorCSV = () => {
+    // Export only regular keywords - NO QUOTES
     let csvContent = "Campaign,Ad Group,Keyword,Match Type\n";
     
+    // Add keywords for each ad group
     editableCampaign.themes.forEach(theme => {
       theme.adGroups.forEach(adGroup => {
         adGroup.keywords.forEach(keyword => {
-          const matchType = keyword.matchType.toLowerCase();
-          csvContent += `"${editableCampaign.campaignName}","${adGroup.name}","${keyword.keyword}","${matchType}"\n`;
+          const matchType = keyword.matchType.toLowerCase(); // ensure lowercase
+          
+          // Use the comprehensive cleaning function
+          const cleanKeyword = cleanKeywordText(keyword.keyword);
+          
+          // NO QUOTES around values
+          csvContent += `${editableCampaign.campaignName},${adGroup.name},${cleanKeyword},${matchType}\n`;
         });
       });
     });
@@ -315,11 +393,16 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
   };
 
   const exportNegativeKeywordsCSV = () => {
-    let csvContent = "Campaign,Keyword\n";
+    // Use 4-column format - NO QUOTES
+    let csvContent = "Campaign,Ad Group,Keyword,Type\n";
     
     if (editableCampaign.negativeKeywords && editableCampaign.negativeKeywords.length > 0) {
       editableCampaign.negativeKeywords.forEach(negKeyword => {
-        csvContent += `"${editableCampaign.campaignName}","${negKeyword}"\n`;
+        // Use the comprehensive cleaning function
+        const cleanNegKeyword = cleanKeywordText(negKeyword);
+        
+        // Campaign-level negative keywords - NO QUOTES
+        csvContent += `${editableCampaign.campaignName},,${cleanNegKeyword},Campaign negative exact\n`;
       });
     }
 
@@ -536,7 +619,7 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
                                           className="text-sm font-mono bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200"
                                           onClick={() => startEditing(keywordId, keyword.keyword)}
                                         >
-                                          {formatKeyword(keyword.keyword, keyword.matchType)}
+                                          {keyword.keyword}
                                         </span>
                                         <span className="text-sm text-gray-600">
                                           {keyword.matchType.charAt(0).toUpperCase() + keyword.matchType.slice(1)} Match
