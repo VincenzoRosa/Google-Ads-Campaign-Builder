@@ -110,13 +110,13 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
         data.uniqueSellingPoint2,
         data.uniqueSellingPoint3,
       ].filter(Boolean) as string[],
-      price: data.price || undefined,
+      price: data.price,
       currency: selectedCountryData?.currency,
       matchTypeStrategy: data.matchTypeStrategy,
       keywordDensity: data.keywordDensity,
       apiKey: data.apiKey,
-      aiModel: data.aiModel,
-      maxTokens: data.maxTokens,
+      aiModel: data.aiModel || undefined,
+      maxTokens: data.maxTokens || undefined,
       customPrompt: data.customPrompt,
     };
 
@@ -278,13 +278,21 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
                 {COUNTRIES.find(c => c.code === watchedCountry)?.currency || 'USD'}
               </span>
               <input
-                {...register('price', { valueAsNumber: true })}
-                type="number"
-                step="0.01"
-                min="0"
+                {...register('price', { 
+                  setValueAs: (value) => {
+                    if (!value || value.trim() === '') {
+                      return undefined;
+                    }
+                    const num = parseFloat(value);
+                    return isNaN(num) ? undefined : num;
+                  }
+                })}
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
                 id="price"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="0.00"
+                placeholder="Enter price (optional)"
               />
             </div>
           </div>
@@ -474,13 +482,22 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
                     Max Tokens
                   </label>
                   <input
-                    {...register('maxTokens', { valueAsNumber: true })}
+                    {...register('maxTokens', { 
+                      setValueAs: (value) => {
+                        if (value === '' || value === null || value === undefined) {
+                          return undefined;
+                        }
+                        const num = parseInt(value);
+                        return isNaN(num) ? undefined : num;
+                      }
+                    })}
                     type="number"
                     min="1000"
                     max="32000"
                     step="1000"
                     id="maxTokens"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Default: 16000"
                   />
                   <p className="text-xs text-gray-500 mt-1">Higher values allow for larger campaigns (up to 32000)</p>
                   <p className="text-xs text-orange-600 mt-1">Note: O-series models (O1, O3, O4) use max_completion_tokens and can handle very large outputs</p>
