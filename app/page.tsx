@@ -91,7 +91,10 @@ export default function Home() {
         {/* Campaign Output */}
         {generatedCampaign && (
           <div id="campaign-output" className="space-y-6">
-            <CampaignOutput campaign={generatedCampaign} />
+            <CampaignOutput 
+              campaign={generatedCampaign} 
+              onCampaignUpdate={setGeneratedCampaign}
+            />
             
             {/* Generate Another Button */}
             <div className="flex justify-center">

@@ -2,19 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { GeneratedCampaign, KeywordTheme, AdGroup, ResponsiveSearchAd, KeywordVariant } from '../types/campaign';
-import { Copy, Download, ChevronDown, ChevronRight, Eye, CheckCircle, X, Plus, Edit2, Save } from 'lucide-react';
+import { Copy, Download, ChevronDown, ChevronRight, Eye, CheckCircle, X, Plus, Edit2, Save, RefreshCw } from 'lucide-react';
+import RegenerationPanel from './RegenerationPanel';
 
 interface CampaignOutputProps {
   campaign: GeneratedCampaign;
+  onCampaignUpdate?: (updatedCampaign: GeneratedCampaign) => void;
 }
 
-export default function CampaignOutput({ campaign }: CampaignOutputProps) {
+export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignOutputProps) {
   const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set([0]));
   const [expandedAdGroups, setExpandedAdGroups] = useState<Set<string>>(new Set());
   const [copiedSections, setCopiedSections] = useState<Set<string>>(new Set());
   const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
   const [editableCampaign, setEditableCampaign] = useState<GeneratedCampaign>(campaign);
   const [editValues, setEditValues] = useState<{ [key: string]: string }>({});
+  const [showRegenerationPanel, setShowRegenerationPanel] = useState(false);
 
   // Comprehensive cleaning function
   const cleanKeywordText = (text: string): string => {
@@ -73,6 +76,14 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
     
     setEditableCampaign(cleanedCampaign);
   }, [campaign]);
+
+  // Handle campaign regeneration
+  const handleRegenerationComplete = (updatedCampaign: GeneratedCampaign) => {
+    setEditableCampaign(updatedCampaign);
+    if (onCampaignUpdate) {
+      onCampaignUpdate(updatedCampaign);
+    }
+  };
 
   const toggleTheme = (index: number) => {
     const newExpanded = new Set(expandedThemes);
@@ -478,6 +489,13 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
               >
                 <Download className="w-4 h-4" />
                 <span>Export All Keywords</span>
+              </button>
+              <button
+                onClick={() => setShowRegenerationPanel(true)}
+                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Regenerate with AI</span>
               </button>
             </div>
             <div className="flex space-x-2">
@@ -1018,6 +1036,15 @@ export default function CampaignOutput({ campaign }: CampaignOutputProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Regeneration Panel */}
+      {showRegenerationPanel && (
+        <RegenerationPanel
+          campaign={editableCampaign}
+          onRegenerationComplete={handleRegenerationComplete}
+          onClose={() => setShowRegenerationPanel(false)}
+        />
       )}
     </div>
   );

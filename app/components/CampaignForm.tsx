@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { COUNTRIES, getLanguagesByCountry, CampaignInput, MatchTypeStrategy, KeywordDensity } from '../types/campaign';
-import { Loader2, Globe, Target, Zap, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Globe, Target, Zap } from 'lucide-react';
+import AISettings from './AISettings';
 
 const campaignSchema = z.object({
   productDescription: z.string().min(10, 'Product description must be at least 10 characters').max(500, 'Product description must be less than 500 characters'),
@@ -37,8 +38,6 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
   const [selectedCountry, setSelectedCountry] = useState('');
   const [availableLanguages, setAvailableLanguages] = useState<any[]>([]);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [savedApiKey, setSavedApiKey] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
 
   const {
     register,
@@ -57,17 +56,9 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
     },
   });
 
-  // Load API key from localStorage on mount
-  React.useEffect(() => {
-    const storedApiKey = localStorage.getItem('openai_api_key');
-    if (storedApiKey) {
-      setSavedApiKey(storedApiKey);
-      setValue('apiKey', storedApiKey);
-    }
-  }, [setValue]);
+
 
   const watchedCountry = watch('targetCountry');
-  const watchedAiModel = watch('aiModel');
 
   // Update available languages when country changes
   React.useEffect(() => {
@@ -82,22 +73,8 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
     }
   }, [watchedCountry, setValue]);
 
-  // Update max tokens when model changes
-  React.useEffect(() => {
-    if (watchedAiModel && (watchedAiModel.startsWith('o1') || watchedAiModel.startsWith('o3') || watchedAiModel.startsWith('o4'))) {
-      setValue('maxTokens', 16000); // Higher default for O-series to prevent truncation
-    } else if (watchedAiModel) {
-      setValue('maxTokens', 8000); // Standard default for GPT models
-    }
-  }, [watchedAiModel, setValue]);
-
   const onFormSubmit = (data: CampaignFormData) => {
     const selectedCountryData = COUNTRIES.find(c => c.code === data.targetCountry);
-    
-    // Save API key to localStorage for future use
-    if (data.apiKey) {
-      localStorage.setItem('openai_api_key', data.apiKey);
-    }
     
     const campaignInput: CampaignInput = {
       productDescription: data.productDescription,
@@ -388,170 +365,14 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
         </div>
 
         {/* AI Settings */}
-        <div className="border rounded-lg p-6">
-          <button
-            type="button"
-            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            className="w-full flex items-center justify-between text-xl font-semibold mb-4 hover:text-blue-600 transition-colors"
-          >
-            <div className="flex items-center">
-              <Settings className="w-5 h-5 mr-2 text-gray-600" />
-              AI Settings (Advanced)
-            </div>
-            {showAdvancedSettings ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-          </button>
-          
-          {showAdvancedSettings && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 mb-1">
-                  OpenAI API Key*
-                </label>
-                <div className="relative">
-                  <input
-                    {...register('apiKey')}
-                    type={showApiKey ? "text" : "password"}
-                    id="apiKey"
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="sk-..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700"
-                  >
-                    {showApiKey ? (
-                      <EyeOff className="h-5 w-5" />
-                    ) : (
-                      <Eye className="h-5 w-5" />
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Your API key is stored locally and never sent to our servers</p>
-                <p className="text-sm text-red-600">{errors.apiKey?.message}</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="aiModel" className="block text-sm font-medium text-gray-700 mb-1">
-                    AI Model
-                  </label>
-                  <select
-                    {...register('aiModel')}
-                    id="aiModel"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <optgroup label="Latest GPT-4 Models">
-                      <option value="gpt-4.5-preview-2025-02-27">GPT-4.5 Preview (Most Advanced - $37.50/1M)</option>
-                      <option value="gpt-4.1-2025-04-14">GPT-4.1 (Efficient - $1.00/1M)</option>
-                      <option value="gpt-4.1-mini-2025-04-14">GPT-4.1 Mini (Fast - $0.20/1M)</option>
-                      <option value="gpt-4.1-nano-2025-04-14">GPT-4.1 Nano (Fastest - $0.05/1M)</option>
-                      <option value="gpt-4o-2024-08-06">GPT-4o (Recommended - $1.25/1M)</option>
-                      <option value="gpt-4o-mini-2024-07-18">GPT-4o Mini ($0.075/1M)</option>
-                    </optgroup>
-                    <optgroup label="O-Series Models (Reasoning)">
-                      <option value="o1-pro-2025-03-19">O1 Pro (Best Reasoning - $75/1M)</option>
-                      <option value="o1-2024-12-17">O1 (Advanced - $7.50/1M)</option>
-                      <option value="o1-mini-2024-09-12">O1 Mini ($0.55/1M)</option>
-                      <option value="o3-pro-2025-06-10">O3 Pro ($10/1M)</option>
-                      <option value="o3-2025-04-16">O3 (Good Balance - $1.00/1M)</option>
-                      <option value="o3-mini-2025-01-31">O3 Mini ($0.55/1M)</option>
-                      <option value="o4-mini-2025-04-16">O4 Mini (Cost Effective - $0.55/1M)</option>
-                    </optgroup>
-                    <optgroup label="GPT-4 Legacy">
-                      <option value="gpt-4-turbo-2024-04-09">GPT-4 Turbo ($10/1M)</option>
-                      <option value="gpt-4">GPT-4 ($30/1M)</option>
-                    </optgroup>
-                    <optgroup label="GPT-3.5">
-                      <option value="gpt-3.5-turbo-0125">GPT-3.5 Turbo (Budget - $0.50/1M)</option>
-                    </optgroup>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Prices shown are for input tokens. O-series models offer advanced reasoning capabilities.</p>
-                  <div className={`text-xs mt-2 p-2 rounded ${watch('aiModel')?.startsWith('o') ? 'bg-yellow-50 text-yellow-800 border border-yellow-200' : 'hidden'}`}>
-                    <strong>Tip:</strong> O-series models excel at reasoning but may need more tokens for large campaigns:
-                    <ul className="list-disc list-inside mt-1">
-                      <li>Consider increasing max tokens to 20000-32000 for comprehensive campaigns</li>
-                      <li>These models provide excellent keyword research and ad copy quality</li>
-                      <li>Allow extra time as O-series models process more thoroughly</li>
-                    </ul>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="maxTokens" className="block text-sm font-medium text-gray-700 mb-1">
-                    Max Tokens
-                  </label>
-                  <input
-                    {...register('maxTokens', { 
-                      setValueAs: (value) => {
-                        if (value === '' || value === null || value === undefined) {
-                          return undefined;
-                        }
-                        const num = parseInt(value);
-                        return isNaN(num) ? undefined : num;
-                      }
-                    })}
-                    type="number"
-                    min="1000"
-                    max="32000"
-                    step="1000"
-                    id="maxTokens"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Default: 16000"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Higher values allow for larger campaigns (up to 32000)</p>
-                  <p className="text-xs text-orange-600 mt-1">Note: O-series models (O1, O3, O4) use max_completion_tokens and can handle very large outputs</p>
-                  <p className="text-sm text-red-600">{errors.maxTokens?.message}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Default Prompt Template
-                </label>
-                <div className="bg-gray-50 p-3 rounded-md border border-gray-200 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto">
-                  <p className="whitespace-pre-wrap">
-{`Generate a COMPREHENSIVE Search campaign with:
-• AT LEAST 12 ad groups total (more is better!)
-• 100+ total keywords across all ad groups
-• Multiple ad groups per theme based on match type strategy
-• 5-15 keywords per ad group (based on density setting)
-• 2 RSAs per ad group (15 headlines, 4 descriptions each)
-• 15-20 negative keywords
-
-The AI will think exhaustively about ALL search intents:
-- Generic product terms (multiple variations)
-- Brand + product combinations
-- Problem/solution keywords
-- Feature-specific searches
-- Comparison searches
-- Location-based searches
-- Intent-based searches (buy, purchase, order, shop, etc.)
-- Quality modifiers (best, top, premium, cheap, affordable, etc.)
-- Use case specific searches
-- Seasonal or occasion-based searches
-
-DO NOT STOP until AT LEAST 12 ad groups and 100+ keywords total!`}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="customPrompt" className="block text-sm font-medium text-gray-700 mb-1">
-                  Additional Instructions (Optional)
-                </label>
-                <textarea
-                  {...register('customPrompt')}
-                  id="customPrompt"
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Add any specific instructions or requirements for the AI..."
-                />
-                <p className="text-xs text-gray-500 mt-1">These instructions will be appended to the default prompt</p>
-              </div>
-            </div>
-          )}
-        </div>
+        <AISettings
+          register={register}
+          setValue={setValue}
+          watch={watch}
+          errors={errors}
+          showAdvancedSettings={showAdvancedSettings}
+          onShowAdvancedSettingsChange={setShowAdvancedSettings}
+        />
 
         {/* Submit Button */}
         <div className="flex justify-center">
