@@ -9,8 +9,10 @@ interface RegenerationRequest {
   aiModel?: string;
   maxTokens?: number;
   customPrompt?: string;
-  targetTheme?: string; // Optional: regenerate only for specific theme
-  targetAdGroup?: string; // Optional: regenerate only for specific ad group
+  targetTheme?: string; // Optional: regenerate only for specific theme (deprecated - use targetThemeIndex)
+  targetAdGroup?: string; // Optional: regenerate only for specific ad group (deprecated - use targetAdGroupIndex)
+  targetThemeIndex?: number; // Optional: regenerate only for specific theme by index
+  targetAdGroupIndex?: string; // Optional: regenerate only for specific ad group by index (format: "themeIndex-adGroupIndex")
 }
 
 interface RegenerationResponse {
@@ -21,7 +23,26 @@ interface RegenerationResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse<RegenerationResponse>> {
   try {
-    const { campaign, regenerationType, apiKey, aiModel, maxTokens, customPrompt, targetTheme, targetAdGroup }: RegenerationRequest = await request.json();
+    const { campaign, regenerationType, apiKey, aiModel, maxTokens, customPrompt, targetTheme, targetAdGroup, targetThemeIndex, targetAdGroupIndex }: RegenerationRequest = await request.json();
+    
+    // Convert index-based targeting to name-based targeting for backward compatibility
+    let actualTargetTheme = targetTheme;
+    let actualTargetAdGroup = targetAdGroup;
+    
+    if (targetThemeIndex !== undefined && targetThemeIndex >= 0 && targetThemeIndex < campaign.themes.length) {
+      actualTargetTheme = campaign.themes[targetThemeIndex].theme;
+    }
+    
+    if (targetAdGroupIndex) {
+      const [themeIndexStr, adGroupIndexStr] = targetAdGroupIndex.split('-');
+      const themeIndex = parseInt(themeIndexStr);
+      const adGroupIndex = parseInt(adGroupIndexStr);
+      
+      if (themeIndex >= 0 && themeIndex < campaign.themes.length && 
+          adGroupIndex >= 0 && adGroupIndex < campaign.themes[themeIndex].adGroups.length) {
+        actualTargetAdGroup = campaign.themes[themeIndex].adGroups[adGroupIndex].name;
+      }
+    }
     
     if (!apiKey) {
       return NextResponse.json({
@@ -45,7 +66,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
     let lastValidationError = '';
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const prompt = buildRegenerationPrompt(campaign, regenerationType, targetTheme, targetAdGroup, attempt);
+      const prompt = buildRegenerationPrompt(campaign, regenerationType, actualTargetTheme, actualTargetAdGroup, attempt, customPrompt);
+      
+      // Debug log to verify prompt content for all scopes
+      console.log('Final prompt sent to LLM:', prompt);
       
       const completionParams: any = {
         model: aiModel || "gpt-4o-2024-08-06",
@@ -53,8 +77,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
           {
             role: "system",
             content: isOSeriesModel 
-              ? "You are a Google Ads expert specializing in creative and diverse campaign generation. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Use creative thinking and avoid repetition at all costs. ALWAYS include the 'themes' array in your response."
-              : "You are a Google Ads expert specializing in creating high-performing Search campaigns with creative and diverse content. You understand keyword research, match types, ad copy best practices, and local market preferences. You excel at generating unique, varied content that avoids repetition. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Always respond with valid JSON structure as requested. ALWAYS include the 'themes' array in your response."
+              ? "You are a Google Ads expert specializing in creative and diverse campaign generation. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Use creative thinking and avoid repetition at all costs. ALWAYS include the 'themes' array in your response. You MUST prioritize and follow any user-provided custom instructions above all else."
+              : "You are a Google Ads expert specializing in creating high-performing Search campaigns with creative and diverse content. You understand keyword research, match types, ad copy best practices, and local market preferences. You excel at generating unique, varied content that avoids repetition. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Always respond with valid JSON structure as requested. ALWAYS include the 'themes' array in your response. You MUST prioritize and follow any user-provided custom instructions above all else."
           },
           {
             role: "user",
@@ -124,10 +148,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
       }
 
       // Validate that the regenerated content is actually different
-      const validationResult = validateRegeneratedContent(campaign, parsedResponse, regenerationType, targetTheme, targetAdGroup);
+      const validationResult = validateRegeneratedContent(campaign, parsedResponse, regenerationType, actualTargetTheme, actualTargetAdGroup);
       if (validationResult.isValid) {
         // Merge the regenerated content with the existing campaign
-        const updatedCampaign = mergeRegeneratedContent(campaign, parsedResponse, regenerationType, targetTheme, targetAdGroup);
+        const updatedCampaign = mergeRegeneratedContent(campaign, parsedResponse, regenerationType, actualTargetTheme, actualTargetAdGroup);
 
         return NextResponse.json({
           success: true,
@@ -170,9 +194,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
   }
 }
 
-function buildRegenerationPrompt(campaign: GeneratedCampaign, regenerationType: string, targetTheme?: string, targetAdGroup?: string, attempt?: number): string {
-  let prompt = `You are regenerating parts of an existing Google Ads campaign. CRITICAL: You MUST generate COMPLETELY DIFFERENT content from what currently exists. DO NOT repeat or reuse any existing keywords or ad copy.\n\n`;
-  
+function buildRegenerationPrompt(campaign: GeneratedCampaign, regenerationType: string, targetTheme?: string, targetAdGroup?: string, attempt?: number, customPrompt?: string): string {
+  let prompt = '';
+  if (customPrompt) {
+    prompt += `USER CUSTOM INSTRUCTIONS: ${customPrompt}\n\n`;
+  }
   if (attempt && attempt > 1) {
     prompt += `⚠️ ATTEMPT ${attempt}: Your previous response was rejected because it did not match the required structure. You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} ad groups. This is your ${attempt}${attempt === 2 ? 'nd' : attempt === 3 ? 'rd' : 'th'} attempt - please be extremely careful with the structure.\n\n`;
   }
@@ -182,31 +208,99 @@ function buildRegenerationPrompt(campaign: GeneratedCampaign, regenerationType: 
   
   // Add current themes and ad groups
   campaign.themes.forEach((theme, themeIndex) => {
-    if (targetTheme && theme.theme !== targetTheme) return;
-    
-    prompt += `Theme ${themeIndex + 1}: ${theme.theme}\n`;
-    theme.adGroups.forEach((adGroup, adGroupIndex) => {
-      if (targetAdGroup && adGroup.name !== targetAdGroup) return;
+    // For Keywords Only regeneration, show ALL themes so LLM can preserve non-target ones
+    if (regenerationType === 'keywords') {
+      // Show all themes, but mark which ones to regenerate
+      let isTargetTheme = false;
       
-      prompt += `  Ad Group: ${adGroup.name} (${adGroup.matchType} match)\n`;
-      
-      if (regenerationType === 'keywords' || regenerationType === 'both') {
-        prompt += `  CURRENT KEYWORDS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT TERMS):\n`;
-        adGroup.keywords.forEach(keyword => {
-          prompt += `    - ${keyword.keyword} (${keyword.matchType})\n`;
-        });
+      if (targetTheme) {
+        // Theme-specific regeneration
+        isTargetTheme = theme.theme === targetTheme;
+      } else if (targetAdGroup) {
+        // Ad group-specific regeneration - only mark theme that contains the target ad group
+        isTargetTheme = theme.adGroups.some(adGroup => adGroup.name === targetAdGroup);
+      } else {
+        // Entire campaign regeneration
+        isTargetTheme = true;
       }
       
-      if (regenerationType === 'rsa' || regenerationType === 'both') {
-        prompt += `  CURRENT RSA ADS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT MESSAGING):\n`;
-        adGroup.ads.forEach((ad, adIndex) => {
-          prompt += `    RSA ${adIndex + 1}:\n`;
-          prompt += `      Headlines: ${ad.headlines.join(', ')}\n`;
-          prompt += `      Descriptions: ${ad.descriptions.join(', ')}\n`;
-        });
+      prompt += `Theme ${themeIndex + 1}: ${theme.theme}${isTargetTheme ? ' (REGENERATE THIS THEME)' : ' (KEEP EXISTING)'}\n`;
+      
+      theme.adGroups.forEach((adGroup, adGroupIndex) => {
+        const isTargetAdGroup = targetAdGroup ? adGroup.name === targetAdGroup : true;
+        const shouldShowKeywords = isTargetTheme && isTargetAdGroup;
+        
+        prompt += `  Ad Group: ${adGroup.name} (${adGroup.matchType} match)${shouldShowKeywords ? ' (REGENERATE THIS AD GROUP)' : ' (KEEP EXISTING)'}\n`;
+        
+        if (shouldShowKeywords) {
+          prompt += `  CURRENT KEYWORDS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT TERMS):\n`;
+          adGroup.keywords.forEach(keyword => {
+            prompt += `    - ${keyword.keyword} (${keyword.matchType})\n`;
+          });
+        }
+        prompt += `\n`;
+      });
+    } else if (regenerationType === 'rsa') {
+      // For RSA regeneration, show ALL themes and ad groups with clear marking
+      let isTargetTheme = false;
+      
+      if (targetTheme) {
+        // Theme-specific regeneration
+        isTargetTheme = theme.theme === targetTheme;
+      } else if (targetAdGroup) {
+        // Ad group-specific regeneration - check if this theme contains the target ad group
+        isTargetTheme = theme.adGroups.some(adGroup => adGroup.name === targetAdGroup);
+      } else {
+        // Entire campaign regeneration
+        isTargetTheme = true;
       }
-      prompt += `\n`;
-    });
+      
+      prompt += `Theme ${themeIndex + 1}: ${theme.theme}${isTargetTheme ? ' (REGENERATE ADS IN THIS THEME)' : ' (KEEP EXISTING ADS)'}\n`;
+      
+      theme.adGroups.forEach((adGroup, adGroupIndex) => {
+        const isTargetAdGroup = targetAdGroup ? adGroup.name === targetAdGroup : true;
+        const shouldShowAds = isTargetTheme && isTargetAdGroup;
+        
+        prompt += `  Ad Group: ${adGroup.name} (${adGroup.matchType} match)${shouldShowAds ? ' (REGENERATE ADS IN THIS AD GROUP)' : ' (KEEP EXISTING ADS)'}\n`;
+        
+        if (shouldShowAds) {
+          prompt += `  CURRENT RSA ADS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT MESSAGING):\n`;
+          adGroup.ads.forEach((ad, adIndex) => {
+            prompt += `    RSA ${adIndex + 1}:\n`;
+            prompt += `      Headlines: ${ad.headlines.join(', ')}\n`;
+            prompt += `      Descriptions: ${ad.descriptions.join(', ')}\n`;
+          });
+        }
+        prompt += `\n`;
+      });
+    } else {
+      // For Both regeneration, use the existing filtering logic
+      if (targetTheme && theme.theme !== targetTheme) return;
+      
+      prompt += `Theme ${themeIndex + 1}: ${theme.theme}\n`;
+      theme.adGroups.forEach((adGroup, adGroupIndex) => {
+        if (targetAdGroup && adGroup.name !== targetAdGroup) return;
+        
+        prompt += `  Ad Group: ${adGroup.name} (${adGroup.matchType} match)\n`;
+        
+        if (regenerationType === 'keywords' || regenerationType === 'both') {
+          prompt += `  CURRENT KEYWORDS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT TERMS):\n`;
+          adGroup.keywords.forEach(keyword => {
+            prompt += `    - ${keyword.keyword} (${keyword.matchType})\n`;
+          });
+        }
+        
+        if (regenerationType === 'rsa' || regenerationType === 'both') {
+          prompt += `  CURRENT RSA ADS (DO NOT REPEAT THESE - USE COMPLETELY DIFFERENT MESSAGING):\n`;
+          adGroup.ads.forEach((ad, adIndex) => {
+            prompt += `    RSA ${adIndex + 1}:\n`;
+            prompt += `      Headlines: ${ad.headlines.join(', ')}\n`;
+            prompt += `      Descriptions: ${ad.descriptions.join(', ')}\n`;
+          });
+        }
+        prompt += `\n`;
+      });
+    }
   });
 
   prompt += `\nCRITICAL INSTRUCTIONS FOR DIFFERENT CONTENT:\n`;
@@ -230,16 +324,48 @@ function buildRegenerationPrompt(campaign: GeneratedCampaign, regenerationType: 
     prompt += `- AVOID any keywords that already exist in the current list\n`;
     prompt += `- Try different search intents (buying vs researching, specific vs general)\n`;
     prompt += `- IMPORTANT: Also generate NEW theme names and ad group names that best reflect the new keyword focus. Do NOT reuse the old names.\n`;
-    prompt += `- CRITICAL: You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} total ad groups.\n`;
+    
+    if (targetAdGroup) {
+      prompt += `- CRITICAL: You are regenerating keywords for ONE specific ad group only: "${targetAdGroup}"\n`;
+      prompt += `- You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} total ad groups.\n`;
+      prompt += `- For the "${targetAdGroup}" ad group, generate completely new keywords and a new ad group name\n`;
+      prompt += `- For ALL OTHER ad groups, keep the existing keywords and names exactly as they are\n`;
+      prompt += `- MANDATORY: Only regenerate content for the "${targetAdGroup}" ad group shown above\n`;
+    } else if (targetTheme) {
+      prompt += `- CRITICAL: You are regenerating keywords for ONE specific theme only: "${targetTheme}"\n`;
+      prompt += `- You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} total ad groups.\n`;
+      prompt += `- For the "${targetTheme}" theme, generate completely new keywords, theme name, and ad group names\n`;
+      prompt += `- For ALL OTHER themes, keep the existing keywords and names exactly as they are\n`;
+      prompt += `- MANDATORY: Only regenerate content for the "${targetTheme}" theme shown above\n`;
+    } else {
+      prompt += `- CRITICAL: You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} total ad groups.\n`;
+    }
+    
     prompt += `- MANDATORY: Count your themes and ad groups before responding. If you don't have exactly ${campaign.themes.length} themes and ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} ad groups, regenerate until you do.\n`;
+    prompt += `- IMPORTANT: Pay close attention to any additional instructions provided in the custom prompt field\n`;
+    prompt += `- MANDATORY: Follow ALL custom instructions provided in the additional prompt field\n`;
   } else if (regenerationType === 'rsa') {
     prompt += `REGENERATE RESPONSIVE SEARCH ADS:\n`;
-    prompt += `- Generate 2 NEW RSAs per ad group\n`;
+    if (targetAdGroup) {
+      prompt += `- Generate 2 NEW RSAs ONLY for the "${targetAdGroup}" ad group marked with "(REGENERATE ADS IN THIS AD GROUP)"\n`;
+      prompt += `- For all OTHER ad groups marked with "(KEEP EXISTING ADS)", keep the existing ads exactly as they are\n`;
+    } else if (targetTheme) {
+      prompt += `- Generate 2 NEW RSAs for all ad groups in the "${targetTheme}" theme marked with "(REGENERATE ADS IN THIS THEME)"\n`;
+      prompt += `- For all OTHER themes marked with "(KEEP EXISTING ADS)", keep the existing ads exactly as they are\n`;
+    } else {
+      prompt += `- Generate 2 NEW RSAs per ad group for ALL themes and ad groups\n`;
+    }
     prompt += `- Each RSA should have 15 NEW headlines (max 30 characters each)\n`;
     prompt += `- Each RSA should have 4 NEW descriptions (max 90 characters each)\n`;
     prompt += `- Use DIFFERENT messaging, benefits, and calls-to-action\n`;
     prompt += `- AVOID any headlines or descriptions that already exist\n`;
     prompt += `- Try different value propositions (quality, price, convenience, etc.)\n`;
+    prompt += `- CRITICAL: Keep the EXACT SAME theme names, ad group names, and keywords as shown above - DO NOT change them\n`;
+    prompt += `- CRITICAL: Only regenerate the ads content (headlines and descriptions), preserve all other structure\n`;
+    prompt += `- IMPORTANT: Pay close attention to any additional instructions provided in the custom prompt field\n`;
+    prompt += `- MANDATORY: Follow ALL custom instructions provided in the additional prompt field\n`;
+    prompt += `- CRITICAL: You MUST create EXACTLY ${campaign.themes.length} themes and EXACTLY ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} total ad groups.\n`;
+    prompt += `- MANDATORY: Count your themes and ad groups before responding. If you don't have exactly ${campaign.themes.length} themes and ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} ad groups, regenerate until you do.\n`;
   } else if (regenerationType === 'both') {
     prompt += `REGENERATE BOTH KEYWORDS, ADS, AND NAMES:\n`;
     prompt += `- Generate 5-15 NEW keywords per ad group\n`;
@@ -253,9 +379,17 @@ function buildRegenerationPrompt(campaign: GeneratedCampaign, regenerationType: 
     prompt += `- MANDATORY: Aim for 100+ total keywords across all ad groups\n`;
     prompt += `- MANDATORY: Count your themes and ad groups before responding. If you don't have exactly ${campaign.themes.length} themes and ${campaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0)} ad groups, regenerate until you do.\n`;
     prompt += `- MANDATORY: Do NOT create fewer themes or ad groups than the original campaign.\n`;
+    prompt += `- IMPORTANT: Pay close attention to any additional instructions provided in the custom prompt field\n`;
+    prompt += `- MANDATORY: Follow ALL custom instructions provided in the additional prompt field\n`;
   }
 
-  prompt += `\nIMPORTANT: You MUST respond with a valid JSON object that includes the \"themes\" array with the same structure as the original campaign. For keywords, theme, and ad group regeneration, the \"theme\" and \"adGroups.name\" fields should be NEW and relevant to the new keywords. Do NOT reuse the old names.\n`;
+  // Add JSON structure instructions based on regeneration type
+  if (regenerationType === 'rsa') {
+    prompt += `\nIMPORTANT: You MUST respond with a valid JSON object that includes the \"themes\" array with the same structure as the original campaign. For RSA regeneration, keep the EXACT SAME theme names, ad group names, and keywords as shown above - ONLY change the ads (headlines and descriptions) for ad groups marked with "(REGENERATE ADS".\n`;
+  } else {
+    prompt += `\nIMPORTANT: You MUST respond with a valid JSON object that includes the \"themes\" array with the same structure as the original campaign. For keywords, theme, and ad group regeneration, the \"theme\" and \"adGroups.name\" fields should be NEW and relevant to the new keywords. Do NOT reuse the old names.\n`;
+  }
+  
   prompt += `\nJSON STRUCTURE REQUIRED:\n`;
   prompt += `{\n`;
   prompt += `  "themes": [\n`;
@@ -295,8 +429,15 @@ function validateRegeneratedContent(originalCampaign: GeneratedCampaign, regener
     return { isValid: false, message: 'No themes found in regenerated content' };
   }
 
-  // Check if the number of themes and ad groups matches the original
-  if (regenerationType === 'keywords' || regenerationType === 'both') {
+  // For RSA-only regeneration, we use position-based matching and don't need strict count validation
+  if (regenerationType === 'rsa') {
+    // For RSA-only, we just need to ensure the structure is reasonable
+    // The LLM should return the same structure as the original, but we'll be flexible
+    if (regeneratedContent.themes.length === 0) {
+      return { isValid: false, message: 'No themes found in regenerated content' };
+    }
+  } else {
+    // For keywords and both regeneration, we need exact count matching
     const originalThemeCount = originalCampaign.themes.length;
     const originalAdGroupCount = originalCampaign.themes.reduce((total, theme) => total + theme.adGroups.length, 0);
     const regeneratedThemeCount = regeneratedContent.themes.length;
@@ -355,57 +496,112 @@ function validateRegeneratedContent(originalCampaign: GeneratedCampaign, regener
   });
 
   // Check regenerated content
-  regeneratedContent.themes.forEach((regeneratedTheme: any) => {
-    const existingTheme = originalCampaign.themes.find(theme => theme.theme === regeneratedTheme.theme);
-    if (!existingTheme || (targetTheme && regeneratedTheme.theme !== targetTheme)) return;
+  if (regenerationType === 'rsa') {
+    // For RSA-only, use position-based matching like the merge logic
+    regeneratedContent.themes.forEach((regeneratedTheme: any, themeIndex: number) => {
+      if (themeIndex < originalCampaign.themes.length) {
+        const originalTheme = originalCampaign.themes[themeIndex];
+        
+        // Skip if we're targeting a specific theme and this isn't it
+        if (targetTheme && originalTheme.theme !== targetTheme) return;
+        
+        if (regeneratedTheme.adGroups && Array.isArray(regeneratedTheme.adGroups)) {
+          regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any, adGroupIndex: number) => {
+            if (adGroupIndex < originalTheme.adGroups.length) {
+              const originalAdGroup = originalTheme.adGroups[adGroupIndex];
+              
+              // Skip if we're targeting a specific ad group and this isn't it
+              if (targetAdGroup && originalAdGroup.name !== targetAdGroup) return;
 
-    regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any) => {
-      const existingAdGroup = existingTheme.adGroups.find(adGroup => adGroup.name === regeneratedAdGroup.name);
-      if (!existingAdGroup || (targetAdGroup && regeneratedAdGroup.name !== targetAdGroup)) return;
-
-      if (regenerationType === 'keywords' || regenerationType === 'both') {
-        if (regeneratedAdGroup.keywords) {
-          totalKeywords += regeneratedAdGroup.keywords.length;
-          regeneratedAdGroup.keywords.forEach((keyword: any) => {
-            if (existingKeywords.has(keyword.keyword.toLowerCase().trim())) {
-              duplicateKeywords++;
+              // Always check character limits for RSA ads
+              if (regeneratedAdGroup.ads) {
+                totalAds += regeneratedAdGroup.ads.length;
+                regeneratedAdGroup.ads.forEach((ad: any) => {
+                  if (ad.headlines) {
+                    ad.headlines.forEach((headline: string) => {
+                      // Check headline character limit (30 characters)
+                      if (headline.length > 30) {
+                        invalidHeadlines.push(`"${headline}" (${headline.length} characters)`);
+                      }
+                      // Check for duplicates
+                      if (existingHeadlines.has(headline.toLowerCase().trim())) {
+                        duplicateHeadlines++;
+                      }
+                    });
+                  }
+                  if (ad.descriptions) {
+                    ad.descriptions.forEach((description: string) => {
+                      // Check description character limit (90 characters)
+                      if (description.length > 90) {
+                        invalidDescriptions.push(`"${description}" (${description.length} characters)`);
+                      }
+                      // Check for duplicates
+                      if (existingDescriptions.has(description.toLowerCase().trim())) {
+                        duplicateDescriptions++;
+                      }
+                    });
+                  }
+                });
+              }
             }
           });
         }
       }
-
-      // Always check character limits for RSA ads, regardless of regeneration type
-      if (regeneratedAdGroup.ads) {
-        totalAds += regeneratedAdGroup.ads.length;
-        regeneratedAdGroup.ads.forEach((ad: any) => {
-          if (ad.headlines) {
-            ad.headlines.forEach((headline: string) => {
-              // Check headline character limit (30 characters)
-              if (headline.length > 30) {
-                invalidHeadlines.push(`"${headline}" (${headline.length} characters)`);
-              }
-              // Only check for duplicates if we're regenerating RSA content
-              if ((regenerationType === 'rsa' || regenerationType === 'both') && existingHeadlines.has(headline.toLowerCase().trim())) {
-                duplicateHeadlines++;
-              }
-            });
-          }
-          if (ad.descriptions) {
-            ad.descriptions.forEach((description: string) => {
-              // Check description character limit (90 characters)
-              if (description.length > 90) {
-                invalidDescriptions.push(`"${description}" (${description.length} characters)`);
-              }
-              // Only check for duplicates if we're regenerating RSA content
-              if ((regenerationType === 'rsa' || regenerationType === 'both') && existingDescriptions.has(description.toLowerCase().trim())) {
-                duplicateDescriptions++;
-              }
-            });
-          }
-        });
-      }
     });
-  });
+  } else {
+    // For keywords and both regeneration, use name-based matching
+    regeneratedContent.themes.forEach((regeneratedTheme: any) => {
+      const existingTheme = originalCampaign.themes.find(theme => theme.theme === regeneratedTheme.theme);
+      if (!existingTheme || (targetTheme && regeneratedTheme.theme !== targetTheme)) return;
+
+      regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any) => {
+        const existingAdGroup = existingTheme.adGroups.find(adGroup => adGroup.name === regeneratedAdGroup.name);
+        if (!existingAdGroup || (targetAdGroup && regeneratedAdGroup.name !== targetAdGroup)) return;
+
+        if (regenerationType === 'keywords' || regenerationType === 'both') {
+          if (regeneratedAdGroup.keywords) {
+            totalKeywords += regeneratedAdGroup.keywords.length;
+            regeneratedAdGroup.keywords.forEach((keyword: any) => {
+              if (existingKeywords.has(keyword.keyword.toLowerCase().trim())) {
+                duplicateKeywords++;
+              }
+            });
+          }
+        }
+
+        // Always check character limits for RSA ads, regardless of regeneration type
+        if (regeneratedAdGroup.ads) {
+          totalAds += regeneratedAdGroup.ads.length;
+          regeneratedAdGroup.ads.forEach((ad: any) => {
+            if (ad.headlines) {
+              ad.headlines.forEach((headline: string) => {
+                // Check headline character limit (30 characters)
+                if (headline.length > 30) {
+                  invalidHeadlines.push(`"${headline}" (${headline.length} characters)`);
+                }
+                // Only check for duplicates if we're regenerating RSA content
+                if ((regenerationType === 'rsa' || regenerationType === 'both') && existingHeadlines.has(headline.toLowerCase().trim())) {
+                  duplicateHeadlines++;
+                }
+              });
+            }
+            if (ad.descriptions) {
+              ad.descriptions.forEach((description: string) => {
+                // Check description character limit (90 characters)
+                if (description.length > 90) {
+                  invalidDescriptions.push(`"${description}" (${description.length} characters)`);
+                }
+                // Only check for duplicates if we're regenerating RSA content
+                if ((regenerationType === 'rsa' || regenerationType === 'both') && existingDescriptions.has(description.toLowerCase().trim())) {
+                  duplicateDescriptions++;
+                }
+              });
+            }
+          });
+        }
+      });
+    });
+  }
 
   // Check for character limit violations
   if (invalidHeadlines.length > 0) {
@@ -460,32 +656,88 @@ function mergeRegeneratedContent(originalCampaign: GeneratedCampaign, regenerate
   
   // If regeneratedContent has themes, merge them
   if (regeneratedContent.themes && Array.isArray(regeneratedContent.themes)) {
-    // For keywords or both regeneration, we want to replace the entire content
-    if (regenerationType === 'keywords' || regenerationType === 'both') {
-      // Replace the entire campaign content with regenerated content
+    // For keywords regeneration with specific targeting, we need selective updates
+    if (regenerationType === 'keywords' && (targetTheme || targetAdGroup)) {
+      // Use position-based matching to handle theme/ad group name changes
+      regeneratedContent.themes.forEach((regeneratedTheme: any, themeIndex: number) => {
+        if (themeIndex < updatedCampaign.themes.length) {
+          const originalTheme = updatedCampaign.themes[themeIndex];
+          
+          // Determine if this theme should be updated based on targeting
+          let shouldUpdateTheme = false;
+          
+          if (targetTheme) {
+            // Theme-specific targeting - check if original theme matches target
+            shouldUpdateTheme = originalTheme.theme === targetTheme;
+          } else if (targetAdGroup) {
+            // Ad group-specific targeting - check if this theme contains the target ad group
+            shouldUpdateTheme = originalTheme.adGroups.some(adGroup => adGroup.name === targetAdGroup);
+          }
+          
+          if (shouldUpdateTheme) {
+            // Update theme name if regenerating this theme
+            updatedCampaign.themes[themeIndex].theme = regeneratedTheme.theme;
+            
+            // Process ad groups by position
+            if (regeneratedTheme.adGroups && Array.isArray(regeneratedTheme.adGroups)) {
+              regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any, adGroupIndex: number) => {
+                if (adGroupIndex < originalTheme.adGroups.length) {
+                  const originalAdGroup = originalTheme.adGroups[adGroupIndex];
+                  
+                  // Determine if this ad group should be updated
+                  let shouldUpdateAdGroup = false;
+                  
+                  if (targetAdGroup) {
+                    // Ad group-specific targeting - only update the target ad group
+                    shouldUpdateAdGroup = originalAdGroup.name === targetAdGroup;
+                  } else {
+                    // Theme-specific targeting - update all ad groups in the theme
+                    shouldUpdateAdGroup = true;
+                  }
+                  
+                  if (shouldUpdateAdGroup) {
+                    updatedCampaign.themes[themeIndex].adGroups[adGroupIndex].name = regeneratedAdGroup.name;
+                    updatedCampaign.themes[themeIndex].adGroups[adGroupIndex].keywords = regeneratedAdGroup.keywords;
+                    // For keywords-only regeneration, DO NOT update ads - keep existing ads
+                    // (ads should only be updated for 'rsa' or 'both' regeneration types)
+                  }
+                }
+              });
+            }
+          }
+        }
+      });
+    } else if (regenerationType === 'keywords' || regenerationType === 'both') {
+      // Replace the entire campaign content with regenerated content (for full campaign regeneration)
       updatedCampaign.themes = regeneratedContent.themes;
     } else if (regenerationType === 'rsa') {
       // For RSA only, we need to merge while keeping existing structure
-      regeneratedContent.themes.forEach((regeneratedTheme: any) => {
-        const existingThemeIndex = updatedCampaign.themes.findIndex(theme => theme.theme === regeneratedTheme.theme);
-        
-        if (existingThemeIndex !== -1) {
-          // Update existing theme
-          if (targetTheme && regeneratedTheme.theme !== targetTheme) return;
+      // Match by position/index instead of by name to avoid merge failures
+      regeneratedContent.themes.forEach((regeneratedTheme: any, themeIndex: number) => {
+        // Check if this theme index exists in the original campaign
+        if (themeIndex < updatedCampaign.themes.length) {
+          const originalTheme = updatedCampaign.themes[themeIndex];
           
-          regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any) => {
-            const existingAdGroupIndex = updatedCampaign.themes[existingThemeIndex].adGroups.findIndex(
-              adGroup => adGroup.name === regeneratedAdGroup.name
-            );
-            
-            if (existingAdGroupIndex !== -1) {
-              // Update existing ad group
-              if (targetAdGroup && regeneratedAdGroup.name !== targetAdGroup) return;
-              
-              // Only update ads for RSA regeneration
-              updatedCampaign.themes[existingThemeIndex].adGroups[existingAdGroupIndex].ads = regeneratedAdGroup.ads;
-            }
-          });
+          // Skip if we're targeting a specific theme and this isn't it
+          if (targetTheme && originalTheme.theme !== targetTheme) return;
+          
+          // Process ad groups by position/index
+          if (regeneratedTheme.adGroups && Array.isArray(regeneratedTheme.adGroups)) {
+            regeneratedTheme.adGroups.forEach((regeneratedAdGroup: any, adGroupIndex: number) => {
+              // Check if this ad group index exists in the original theme
+              if (adGroupIndex < originalTheme.adGroups.length) {
+                const originalAdGroup = originalTheme.adGroups[adGroupIndex];
+                
+                // Skip if we're targeting a specific ad group and this isn't it
+                if (targetAdGroup && originalAdGroup.name !== targetAdGroup) return;
+                
+                // Only update ads for RSA regeneration, preserve everything else
+                if (regeneratedAdGroup.ads && Array.isArray(regeneratedAdGroup.ads)) {
+                  updatedCampaign.themes[themeIndex].adGroups[adGroupIndex].ads = regeneratedAdGroup.ads;
+                }
+              }
+            });
+          }
         }
       });
     }

@@ -90,8 +90,8 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
           aiModel: aiSettings.aiModel,
           maxTokens: aiSettings.maxTokens,
           customPrompt: aiSettings.customPrompt,
-          targetTheme: targetScope === 'theme' ? selectedTheme : undefined,
-          targetAdGroup: targetScope === 'adgroup' ? selectedAdGroup : undefined,
+          targetThemeIndex: targetScope === 'theme' ? parseInt(selectedTheme) : undefined,
+          targetAdGroupIndex: targetScope === 'adgroup' ? selectedAdGroup : undefined,
         }),
       });
 
@@ -318,8 +318,8 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Choose a theme...</option>
-                  {campaign.themes.map((theme) => (
-                    <option key={theme.theme} value={theme.theme}>
+                  {campaign.themes.map((theme, index) => (
+                    <option key={index} value={index.toString()}>
                       {theme.theme}
                     </option>
                   ))}
@@ -339,9 +339,9 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Choose an ad group...</option>
-                  {campaign.themes.map((theme) => 
-                    theme.adGroups.map((adGroup) => (
-                      <option key={adGroup.name} value={adGroup.name}>
+                  {campaign.themes.map((theme, themeIndex) => 
+                    theme.adGroups.map((adGroup, adGroupIndex) => (
+                      <option key={`${themeIndex}-${adGroupIndex}`} value={`${themeIndex}-${adGroupIndex}`}>
                         {theme.theme} - {adGroup.name}
                       </option>
                     ))
