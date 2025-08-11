@@ -23,7 +23,7 @@ const campaignSchema = z.object({
   // AI Settings
   apiKey: z.string().min(1, 'OpenAI API key is required'),
   aiModel: z.string().optional(),
-  maxTokens: z.number().min(1000).max(32000).optional(),
+  maxTokens: z.number().min(1000).max(128000).optional(),
   customPrompt: z.string().optional(),
 });
 
@@ -103,7 +103,10 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Google Ads Campaign Generator</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-baseline">
+          Google Ads Campaign Generator
+          <span className="ml-3 text-sm font-normal text-gray-400">v1.2</span>
+        </h1>
         <p className="text-gray-600">AI-powered tool to generate complete Google Ads Search campaigns with keyword research and ad copy creation</p>
       </div>
 

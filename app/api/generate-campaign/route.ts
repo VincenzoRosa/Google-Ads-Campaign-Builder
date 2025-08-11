@@ -38,6 +38,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
       input.aiModel.startsWith('o4')
     );
     
+    // Check if it's a GPT-5 model that uses GPT_MAX_TOKENS
+    const isGPT5Model = input.aiModel && input.aiModel.startsWith('gpt-5');
+    
     // Build the completion parameters based on model type
     const completionParams: any = {
       model: input.aiModel || "gpt-4",
@@ -46,6 +49,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
           role: "system",
           content: isOSeriesModel 
             ? "You are a Google Ads expert. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding."
+            : isGPT5Model
+            ? "You are an advanced Google Ads expert powered by GPT-5, specializing in creating comprehensive, high-performing Search campaigns. You excel at keyword research, understanding search intent, match types, and creating compelling ad copy in multiple languages. Always respond with valid JSON structure as requested."
             : "You are a Google Ads expert specializing in creating high-performing Search campaigns. You understand keyword research, match types, ad copy best practices, and local market preferences. Always respond with valid JSON structure as requested."
         },
         {
@@ -56,9 +61,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
     };
     
     // Use the correct parameter name based on model type
-    if (isOSeriesModel) {
-      completionParams.max_completion_tokens = input.maxTokens || 8000;
-      // O-series models may not support temperature
+    if (isGPT5Model || isOSeriesModel) {
+      // Both GPT-5 and O-series models use max_completion_tokens
+      completionParams.max_completion_tokens = input.maxTokens || (isGPT5Model ? 64000 : 8000);
+      // GPT-5 only supports default temperature (1), O-series may not support temperature
+      if (!isGPT5Model && !isOSeriesModel) {
+        completionParams.temperature = 0.7;
+      }
+      // Don't set temperature for GPT-5 (uses default 1) or O-series
     } else {
       completionParams.max_tokens = input.maxTokens || 8000;
       completionParams.temperature = 0.7;
@@ -79,9 +89,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
     // Check if the response was truncated
     if (finishReason === 'length') {
       console.error('Response was truncated due to token limit');
+      const errorMessage = isGPT5Model 
+        ? 'Response was truncated. GPT-5 models support up to 128,000 tokens. Try: 1) Increasing Max Tokens (up to 128K), 2) Using "high" keyword density for comprehensive campaigns, or 3) Adjusting your campaign requirements.'
+        : 'Response was cut off due to token limit. Please try: 1) Reducing Max Tokens to 2000-4000, 2) Using "low" keyword density, 3) Using "conservative" match type strategy, or 4) Using a simpler product description.';
       return NextResponse.json({
         success: false,
-        error: 'Response was cut off due to token limit. Please try: 1) Reducing Max Tokens to 2000-4000, 2) Using "low" keyword density, 3) Using "conservative" match type strategy, or 4) Using a simpler product description.'
+        error: errorMessage
       }, { status: 500 });
     }
 

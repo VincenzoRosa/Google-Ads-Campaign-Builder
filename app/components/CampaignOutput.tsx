@@ -488,7 +488,7 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
                 className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span>Export All Keywords</span>
+                <span>Export Keywords + Negatives</span>
               </button>
               <button
                 onClick={() => setShowRegenerationPanel(true)}
@@ -504,7 +504,7 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
                 className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span>Export Keywords Only</span>
+                <span>Export Regular Keywords</span>
               </button>
               <button
                 onClick={exportAdsCSV}
@@ -517,9 +517,9 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
           </div>
         </div>
         <div className="mt-2 text-sm text-gray-600">
-          <p><strong>Export All Keywords:</strong> Combined file with regular and negative keywords</p>
-          <p><strong>Export Keywords Only:</strong> Only regular keywords (no negatives)</p>
-          <p><strong>Export Ads:</strong> Responsive Search Ads with Final URL included</p>
+          <p><strong>Export Keywords + Negatives:</strong> Complete keyword list including both targeting keywords and negative keywords</p>
+          <p><strong>Export Regular Keywords:</strong> Only targeting keywords for your ad groups (excludes negative keywords)</p>
+          <p><strong>Export Ads:</strong> Responsive Search Ads with headlines, descriptions, and Final URL</p>
         </div>
       </div>
 

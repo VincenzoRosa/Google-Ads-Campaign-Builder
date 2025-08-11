@@ -60,6 +60,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
       aiModel.startsWith('o3') || 
       aiModel.startsWith('o4')
     );
+    
+    const isGPT5Model = aiModel && aiModel.startsWith('gpt-5');
 
     // Retry mechanism for validation failures
     const maxRetries = 3;
@@ -78,6 +80,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
             role: "system",
             content: isOSeriesModel 
               ? "You are a Google Ads expert specializing in creative and diverse campaign generation. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Use creative thinking and avoid repetition at all costs. ALWAYS include the 'themes' array in your response. You MUST prioritize and follow any user-provided custom instructions above all else."
+              : isGPT5Model
+              ? "You are an advanced Google Ads expert powered by GPT-5, specializing in creating innovative, high-performing Search campaigns. Your deep understanding of search intent, user psychology, and multilingual nuances allows you to generate exceptional content. You MUST create ENTIRELY NEW content that surpasses the original in relevance, creativity, and effectiveness. Always respond with valid JSON structure as requested. ALWAYS include the 'themes' array in your response. You MUST prioritize and follow any user-provided custom instructions above all else."
               : "You are a Google Ads expert specializing in creating high-performing Search campaigns with creative and diverse content. You understand keyword research, match types, ad copy best practices, and local market preferences. You excel at generating unique, varied content that avoids repetition. CRITICAL: You must generate COMPLETELY DIFFERENT content from any examples provided. Always respond with valid JSON structure as requested. ALWAYS include the 'themes' array in your response. You MUST prioritize and follow any user-provided custom instructions above all else."
           },
           {
@@ -87,12 +91,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
         ],
       };
       
-      if (isOSeriesModel) {
-        completionParams.max_completion_tokens = maxTokens || 8000;
-        // O-series models may not support temperature, but we can try
-        if (completionParams.temperature === undefined) {
-          completionParams.temperature = 0.95;
-        }
+      if (isGPT5Model || isOSeriesModel) {
+        // Both GPT-5 and O-series models use max_completion_tokens
+        completionParams.max_completion_tokens = maxTokens || (isGPT5Model ? 64000 : 8000);
+        // GPT-5 only supports default temperature (1), O-series may not support temperature
+        // Don't set temperature for GPT-5 or O-series
       } else {
         completionParams.max_tokens = maxTokens || 8000;
         completionParams.temperature = 0.95; // Very high temperature for maximum creativity
