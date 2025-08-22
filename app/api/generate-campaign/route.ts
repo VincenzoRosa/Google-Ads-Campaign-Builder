@@ -14,8 +14,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
       }, { status: 400 });
     }
 
-    // Check for API key - first from request, then from environment
-    const apiKey = input.apiKey || process.env.OPENAI_API_KEY;
+    // Check for API key from request only
+    const apiKey = input.apiKey;
     
     if (!apiKey) {
       return NextResponse.json({
