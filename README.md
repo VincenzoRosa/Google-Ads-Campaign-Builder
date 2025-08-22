@@ -5,7 +5,7 @@ An AI-powered web tool that uses ChatGPT API to automatically generate complete 
 ## Features
 
 ### Core Functionality
-- **Multi-language Support**: Generate campaigns in 11+ languages across major markets
+- **Multi-language Support**: Generate campaigns in 12+ languages across major markets
 - **SKAG-Inspired Structure**: Single Keyword Ad Group approach with match type separation
 - **AI-Powered Content**: Leverages ChatGPT-4 for intelligent keyword research and ad copy creation
 - **Character Limit Validation**: Real-time validation ensuring all content meets Google Ads requirements
@@ -30,6 +30,7 @@ An AI-powered web tool that uses ChatGPT API to automatically generate complete 
 - Netherlands (Dutch)
 - Brazil (Portuguese)
 - Mexico (Spanish)
+- Poland (Polish)
 
 ## Setup
 
