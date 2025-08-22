@@ -145,6 +145,12 @@ export const COUNTRIES: Country[] = [
     name: 'Mexico',
     languages: [{ code: 'es', name: 'Spanish' }],
     currency: 'MXN'
+  },
+  {
+    code: 'PL',
+    name: 'Poland',
+    languages: [{ code: 'pl', name: 'Polish' }],
+    currency: 'PLN'
   }
 ];
 
