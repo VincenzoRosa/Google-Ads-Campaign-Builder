@@ -336,7 +336,7 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
   const exportCombinedKeywordsCSV = () => {
     // Simple CSV format WITHOUT quotes around values
     let csvContent = "Campaign,Ad Group,Keyword,Type\n";
-    
+
     // First add ALL regular keywords with match type
     editableCampaign.themes.forEach(theme => {
       theme.adGroups.forEach(adGroup => {
@@ -344,25 +344,27 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
           // Use the comprehensive cleaning function
           const cleanKeyword = cleanKeywordText(keyword.keyword);
           const matchType = keyword.matchType.toLowerCase();
-          
+
           // NO QUOTES around values - just comma-separated
           csvContent += `${editableCampaign.campaignName},${adGroup.name},${cleanKeyword},${matchType}\n`;
         });
       });
     });
-    
+
     // Then add negative keywords
     if (editableCampaign.negativeKeywords && editableCampaign.negativeKeywords.length > 0) {
       editableCampaign.negativeKeywords.forEach(negKeyword => {
         // Use the comprehensive cleaning function
         const cleanNegKeyword = cleanKeywordText(negKeyword);
-        
+
         // Campaign-level negative keywords - NO QUOTES
         csvContent += `${editableCampaign.campaignName},,${cleanNegKeyword},Campaign negative exact\n`;
       });
     }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Add UTF-8 BOM for Excel compatibility with special characters (ö, ä, ü, ß, etc.)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('hidden', '');
@@ -376,23 +378,25 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
   const exportGoogleAdsEditorCSV = () => {
     // Export only regular keywords - NO QUOTES
     let csvContent = "Campaign,Ad Group,Keyword,Match Type\n";
-    
+
     // Add keywords for each ad group
     editableCampaign.themes.forEach(theme => {
       theme.adGroups.forEach(adGroup => {
         adGroup.keywords.forEach(keyword => {
           const matchType = keyword.matchType.toLowerCase(); // ensure lowercase
-          
+
           // Use the comprehensive cleaning function
           const cleanKeyword = cleanKeywordText(keyword.keyword);
-          
+
           // NO QUOTES around values
           csvContent += `${editableCampaign.campaignName},${adGroup.name},${cleanKeyword},${matchType}\n`;
         });
       });
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Add UTF-8 BOM for Excel compatibility with special characters (ö, ä, ü, ß, etc.)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('hidden', '');
@@ -406,18 +410,20 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
   const exportNegativeKeywordsCSV = () => {
     // Use 4-column format - NO QUOTES
     let csvContent = "Campaign,Ad Group,Keyword,Type\n";
-    
+
     if (editableCampaign.negativeKeywords && editableCampaign.negativeKeywords.length > 0) {
       editableCampaign.negativeKeywords.forEach(negKeyword => {
         // Use the comprehensive cleaning function
         const cleanNegKeyword = cleanKeywordText(negKeyword);
-        
+
         // Campaign-level negative keywords - NO QUOTES
         csvContent += `${editableCampaign.campaignName},,${cleanNegKeyword},Campaign negative exact\n`;
       });
     }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Add UTF-8 BOM for Excel compatibility with special characters (ö, ä, ü, ß, etc.)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('hidden', '');
@@ -430,16 +436,16 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
 
   const exportAdsCSV = () => {
     let csvContent = "Action,Campaign,Ad Group,Ad Type,Headline 1,Headline 2,Headline 3,Headline 4,Headline 5,Headline 6,Headline 7,Headline 8,Headline 9,Headline 10,Headline 11,Headline 12,Headline 13,Headline 14,Headline 15,Description 1,Description 2,Description 3,Description 4,Final URL,Path 1,Path 2\n";
-    
+
     editableCampaign.themes.forEach(theme => {
       theme.adGroups.forEach(adGroup => {
         adGroup.ads.forEach((ad, adIndex) => {
           const headlines = [...ad.headlines];
           const descriptions = [...ad.descriptions];
-          
+
           while (headlines.length < 15) headlines.push('');
           while (descriptions.length < 4) descriptions.push('');
-          
+
           csvContent += `"Add","${editableCampaign.campaignName}","${adGroup.name}","Responsive search ad",`;
           csvContent += headlines.map(h => `"${h}"`).join(',') + ',';
           csvContent += descriptions.map(d => `"${d}"`).join(',') + ',';
@@ -448,7 +454,9 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
       });
     });
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    // Add UTF-8 BOM for Excel compatibility with special characters (ö, ä, ü, ß, etc.)
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.setAttribute('hidden', '');
