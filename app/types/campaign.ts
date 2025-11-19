@@ -69,10 +69,21 @@ export interface CampaignGenerationRequest {
   input: CampaignInput;
 }
 
+export interface CostBreakdown {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCost: number;
+  outputCost: number;
+  totalCost: number;
+  model: string;
+}
+
 export interface CampaignGenerationResponse {
   success: boolean;
   campaign?: GeneratedCampaign;
   error?: string;
+  cost?: CostBreakdown;
 }
 
 // Country and language data

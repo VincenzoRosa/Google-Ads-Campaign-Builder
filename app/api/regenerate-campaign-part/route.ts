@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { GeneratedCampaign } from '../../types/campaign';
+import { GeneratedCampaign, CostBreakdown } from '../../types/campaign';
+import { calculateCost } from '../../utils/costCalculator';
 
 interface RegenerationRequest {
   campaign: GeneratedCampaign;
@@ -19,6 +20,7 @@ interface RegenerationResponse {
   success: boolean;
   campaign?: GeneratedCampaign;
   error?: string;
+  cost?: CostBreakdown;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<RegenerationResponse>> {
@@ -103,6 +105,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
       
       const completion = await openai.chat.completions.create(completionParams);
 
+      // Extract token usage for cost calculation
+      const tokenUsage = completion.usage;
+      const costInfo = tokenUsage
+        ? calculateCost(tokenUsage, aiModel || "gpt-5")
+        : undefined;
+
       const responseContent = completion.choices[0]?.message?.content;
       const finishReason = completion.choices[0]?.finish_reason;
       
@@ -158,7 +166,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Regenerat
 
         return NextResponse.json({
           success: true,
-          campaign: updatedCampaign
+          campaign: updatedCampaign,
+          cost: costInfo
         });
       } else {
         lastValidationError = validationResult.message;

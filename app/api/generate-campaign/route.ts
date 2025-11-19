@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { CampaignGenerationRequest, CampaignGenerationResponse, GeneratedCampaign } from '../../types/campaign';
+import { calculateCost } from '../../utils/costCalculator';
 
 export async function POST(request: NextRequest): Promise<NextResponse<CampaignGenerationResponse>> {
   try {
@@ -73,6 +74,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
     }
     
     const completion = await openai.chat.completions.create(completionParams);
+
+    // Extract token usage for cost calculation
+    const tokenUsage = completion.usage;
+    const costInfo = tokenUsage
+      ? calculateCost(tokenUsage, input.aiModel || "gpt-5")
+      : undefined;
 
     const responseContent = completion.choices[0]?.message?.content;
     const finishReason = completion.choices[0]?.finish_reason;
@@ -164,7 +171,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
 
     return NextResponse.json({
       success: true,
-      campaign: parsedCampaign
+      campaign: parsedCampaign,
+      cost: costInfo
     });
 
   } catch (error) {

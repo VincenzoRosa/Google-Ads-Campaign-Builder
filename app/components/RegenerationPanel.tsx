@@ -4,13 +4,15 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { GeneratedCampaign } from '../types/campaign';
+import { GeneratedCampaign, CostBreakdown } from '../types/campaign';
+import CostDisplay from './CostDisplay';
 import { RefreshCw, Target, FileText, Zap, Loader2, AlertCircle, CheckCircle, Settings, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';
 
 interface RegenerationPanelProps {
   campaign: GeneratedCampaign;
   onRegenerationComplete: (updatedCampaign: GeneratedCampaign) => void;
   onClose: () => void;
+  onCostUpdate?: (cost: CostBreakdown | null) => void;
 }
 
 const aiSettingsSchema = z.object({
@@ -22,7 +24,7 @@ const aiSettingsSchema = z.object({
 
 type AISettingsData = z.infer<typeof aiSettingsSchema>;
 
-export default function RegenerationPanel({ campaign, onRegenerationComplete, onClose }: RegenerationPanelProps) {
+export default function RegenerationPanel({ campaign, onRegenerationComplete, onClose, onCostUpdate }: RegenerationPanelProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
   const [selectedTheme, setSelectedTheme] = useState<string>('');
   const [selectedAdGroup, setSelectedAdGroup] = useState<string>('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [costInfo, setCostInfo] = useState<CostBreakdown | null>(null);
 
   const {
     register,
@@ -103,12 +106,20 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
 
       if (data.success && data.campaign) {
         onRegenerationComplete(data.campaign);
+        const newCost = data.cost || null;
+        setCostInfo(newCost);
+
+        // Update cost in parent component
+        if (onCostUpdate) {
+          onCostUpdate(newCost);
+        }
+
         setSuccess('Campaign parts regenerated successfully!');
-        
-        // Close the panel after a short delay
+
+        // Close the panel after a longer delay so user can see the cost
         setTimeout(() => {
           onClose();
-        }, 1500);
+        }, 3000);
       } else {
         setError(data.error || 'Failed to regenerate campaign parts');
       }
@@ -198,6 +209,13 @@ export default function RegenerationPanel({ campaign, onRegenerationComplete, on
                 <h3 className="text-green-800 font-medium">Success</h3>
                 <p className="text-green-700 text-sm mt-1">{success}</p>
               </div>
+            </div>
+          )}
+
+          {/* Cost Display */}
+          {success && costInfo && (
+            <div className="mb-4">
+              <CostDisplay cost={costInfo} title="Regeneration Cost" />
             </div>
           )}
 

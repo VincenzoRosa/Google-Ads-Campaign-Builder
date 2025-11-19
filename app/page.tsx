@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import CampaignForm from './components/CampaignForm';
 import CampaignOutput from './components/CampaignOutput';
-import { CampaignInput, GeneratedCampaign, CampaignGenerationResponse } from './types/campaign';
+import CostDisplay from './components/CostDisplay';
+import { CampaignInput, GeneratedCampaign, CampaignGenerationResponse, CostBreakdown } from './types/campaign';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function Home() {
@@ -11,6 +12,7 @@ export default function Home() {
   const [generatedCampaign, setGeneratedCampaign] = useState<GeneratedCampaign | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [costInfo, setCostInfo] = useState<CostBreakdown | null>(null);
 
   const handleCampaignGeneration = async (campaignInput: CampaignInput) => {
     setIsLoading(true);
@@ -31,6 +33,7 @@ export default function Home() {
 
       if (data.success && data.campaign) {
         setGeneratedCampaign(data.campaign);
+        setCostInfo(data.cost || null);
         setSuccess('Campaign generated successfully!');
         
         // Scroll to results
@@ -55,6 +58,7 @@ export default function Home() {
     setGeneratedCampaign(null);
     setError(null);
     setSuccess(null);
+    setCostInfo(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -83,6 +87,13 @@ export default function Home() {
           </div>
         )}
 
+        {/* Cost Display */}
+        {success && costInfo && (
+          <div className="max-w-4xl mx-auto mb-6">
+            <CostDisplay cost={costInfo} title="Campaign Generation Cost" />
+          </div>
+        )}
+
         {/* Main Form */}
         {!generatedCampaign && (
           <CampaignForm onSubmit={handleCampaignGeneration} isLoading={isLoading} />
@@ -91,9 +102,10 @@ export default function Home() {
         {/* Campaign Output */}
         {generatedCampaign && (
           <div id="campaign-output" className="space-y-6">
-            <CampaignOutput 
-              campaign={generatedCampaign} 
+            <CampaignOutput
+              campaign={generatedCampaign}
               onCampaignUpdate={setGeneratedCampaign}
+              onCostUpdate={setCostInfo}
             />
             
             {/* Generate Another Button */}

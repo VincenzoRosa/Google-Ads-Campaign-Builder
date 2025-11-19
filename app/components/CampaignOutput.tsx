@@ -8,9 +8,10 @@ import RegenerationPanel from './RegenerationPanel';
 interface CampaignOutputProps {
   campaign: GeneratedCampaign;
   onCampaignUpdate?: (updatedCampaign: GeneratedCampaign) => void;
+  onCostUpdate?: (cost: any) => void;
 }
 
-export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignOutputProps) {
+export default function CampaignOutput({ campaign, onCampaignUpdate, onCostUpdate }: CampaignOutputProps) {
   const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set([0]));
   const [expandedAdGroups, setExpandedAdGroups] = useState<Set<string>>(new Set());
   const [copiedSections, setCopiedSections] = useState<Set<string>>(new Set());
@@ -1052,6 +1053,7 @@ export default function CampaignOutput({ campaign, onCampaignUpdate }: CampaignO
           campaign={editableCampaign}
           onRegenerationComplete={handleRegenerationComplete}
           onClose={() => setShowRegenerationPanel(false)}
+          onCostUpdate={onCostUpdate}
         />
       )}
     </div>
