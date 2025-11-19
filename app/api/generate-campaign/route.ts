@@ -30,27 +30,27 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
     });
 
     const prompt = buildCampaignPrompt(input);
-    
+
     // Check if it's an O-series model that requires max_completion_tokens
     const isOSeriesModel = input.aiModel && (
-      input.aiModel.startsWith('o1') || 
-      input.aiModel.startsWith('o3') || 
+      input.aiModel.startsWith('o1') ||
+      input.aiModel.startsWith('o3') ||
       input.aiModel.startsWith('o4')
     );
-    
-    // Check if it's a GPT-5 model that uses GPT_MAX_TOKENS
+
+    // Check if it's a GPT-5 model that uses max_completion_tokens
     const isGPT5Model = input.aiModel && input.aiModel.startsWith('gpt-5');
-    
+
     // Build the completion parameters based on model type
     const completionParams: any = {
-      model: input.aiModel || "gpt-4",
+      model: input.aiModel || "gpt-5",
       messages: [
         {
           role: "system",
-          content: isOSeriesModel 
+          content: isOSeriesModel
             ? "You are a Google Ads expert. You MUST respond with ONLY valid JSON, no explanations or text before/after. Ensure all arrays have commas between elements and all JSON syntax is correct. Double-check your JSON is valid before responding."
             : isGPT5Model
-            ? "You are an advanced Google Ads expert powered by GPT-5, specializing in creating comprehensive, high-performing Search campaigns. You excel at keyword research, understanding search intent, match types, and creating compelling ad copy in multiple languages. Always respond with valid JSON structure as requested."
+            ? "You are an expert Google Ads strategist specializing in creating comprehensive, high-performing Search campaigns. You excel at keyword research, understanding search intent, match types, and creating compelling ad copy in multiple languages. Always respond with valid JSON structure as requested."
             : "You are a Google Ads expert specializing in creating high-performing Search campaigns. You understand keyword research, match types, ad copy best practices, and local market preferences. Always respond with valid JSON structure as requested."
         },
         {
@@ -59,18 +59,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<CampaignG
         }
       ],
     };
-    
+
     // Use the correct parameter name based on model type
     if (isGPT5Model || isOSeriesModel) {
       // Both GPT-5 and O-series models use max_completion_tokens
-      completionParams.max_completion_tokens = input.maxTokens || (isGPT5Model ? 64000 : 8000);
-      // GPT-5 only supports default temperature (1), O-series may not support temperature
-      if (!isGPT5Model && !isOSeriesModel) {
-        completionParams.temperature = 0.7;
-      }
-      // Don't set temperature for GPT-5 (uses default 1) or O-series
+      completionParams.max_completion_tokens = input.maxTokens || (isGPT5Model ? 64000 : 32000);
+      // O-series models don't support temperature, GPT-5 uses default
+      // Don't set temperature for these models
     } else {
-      completionParams.max_tokens = input.maxTokens || 8000;
+      // Standard GPT-4, GPT-4o, GPT-3.5 models use max_tokens
+      completionParams.max_tokens = input.maxTokens || 16000;
       completionParams.temperature = 0.7;
     }
     

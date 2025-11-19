@@ -50,8 +50,8 @@ export default function CampaignForm({ onSubmit, isLoading }: CampaignFormProps)
     defaultValues: {
       matchTypeStrategy: 'balanced',
       keywordDensity: 'medium',
-      aiModel: 'gpt-4o-2024-08-06',
-      maxTokens: 16000,
+      aiModel: 'gpt-5',
+      maxTokens: 64000,
       apiKey: '',
     },
   });
